@@ -1,20 +1,66 @@
 $(document).ready(function() {
-    // сделать для tile появление / перемещение и на всех наследовать
-    function Hero() {
-
-    }
-    // тут сделать наследование по перемещению / атаке?
-    // changeTileSize???
-    function Enemy() {
-
+    function Tile() {
+        // this.fieldWidth = 40;
+        // this.tileSize = Math.floor(1024 / this.fieldWidth);
     }
 
-    function Sword() {
-
+    Tile.appearance = function(item, tileX, tileY) {
+        var id = tileX + ' ' + tileY;
+        var elem = document.getElementById(id);
+        elem.classList.add(item);
     }
-    // тут сделать наследование с пропаданием???
-    function Potion() {
 
+    Tile.remove = function(item, tileX, tileY) {
+        var id = tileX + ' ' + tileY;
+        var elem = document.getElementById(id);
+        elem.classList.remove(item);
+    }
+
+    function Character(startPosition, attackPower) {
+        this.currentPosition = startPosition;
+        this.health = 100;
+        this.attackPower = attackPower;
+    }
+
+    Character.prototype.move = function(delta, tileXStart, tileYStart) {
+        if(delta === 1) {
+            this.currentPosition[0]++;
+        }
+        console.log('move');
+    }
+
+    Character.prototype.attack = function(tileX, tileY) {
+        
+    }
+
+    function Hero(startPosition, attackPower) {
+        Character.call(this, startPosition, attackPower);
+    }
+
+    Hero.prototype.stepOnPotion = function() {
+        this.health += 40;
+    }
+
+    Hero.prototype.stepOnSword = function() {
+        this.attackPower += 15;
+    }
+
+    Hero.prototype = Object.create(Character.prototype);
+
+    function Enemy(startPosition, attackPower) {
+        Character.call(this, startPosition, attackPower);
+    }
+
+    Enemy.prototype = Object.create(Character.prototype);
+
+    function Sword(positionX, positionY) {
+        this.positionX = positionX;
+        this.positionY = positionY
+    }
+
+    function Potion(positionX, positionY) {
+        this.positionX = positionX;
+        this.positionY = positionY
     }
 
     function Field() {
@@ -22,10 +68,11 @@ $(document).ready(function() {
         this.height = 24;
         this.tileSize = Math.floor(1024 / this.width);
         this.squareSize = 8; // 8 - максимальный размер ширины / высоты комнаты
-        this.squares = [];
+        this.squares = []; // разбиваем поле на квадраты
         this.rooms = [];
         this.horizontalPasses = [];
         this.verticalPasses = [];
+        this.tilesForMovement = [];
     }
 
     Field.prototype.init = function() {
@@ -48,26 +95,38 @@ $(document).ready(function() {
             }
         }
 
-        this.arrangePasses();
+        this.placePasses();
         // console.log(this.horizontalPasses);
         // console.log(this.verticalPasses);
-        this.arrangeRooms();
-        console.log(this.rooms);
+        this.placeRooms();
+        //console.log(this.rooms);
 
-        // !! СДЕЛАТЬ ИСКЛЮЧЕНИЕ ПО КОМНАТАМ и проходам
-        //заливаем все стеной, исключая проходы и комнаты
+        //заливаем все стеной, исключая проходы
         for (var i = 0; i < this.height; i++) { // колонки field
             for (var j = 0; j < this.width; j++) { // строки field
                 const newTile = document.createElement('div');
                 newTile.classList.add('tile');
+                newTile.id = (j + 1) + ' ' + (i + 1);
                 // если прохода нет на этой клетке, то доабвляем класс стены
                 if (this.horizontalPasses.indexOf(i + 1) < 0 && this.verticalPasses.indexOf(j + 1) < 0) newTile.classList.add('tileW');
-                // проверить на комнаты
                 newTile.style.left = j * this.tileSize + 'px';
                 newTile.style.top = i * this.tileSize + 'px';
                 field.appendChild(newTile); 
             }
         }
+
+        // исключаем комнаты
+        this.rooms.forEach(item => {
+            for (var i = 0; i < item.width; i++) {
+                for (var j = 0; j < item.height; j++) {
+                    var id = (item.topLeftX + i) + ' ' + (item.topLeftY + j);
+                    var elem = document.getElementById(id);
+                    elem.classList.remove('tileW');
+                }
+            }
+        });
+
+        this.defineTilesForMovement();
     }
 
     Field.prototype.changeTileSize = function() {
@@ -75,7 +134,7 @@ $(document).ready(function() {
         $('.tile').css('height', this.tileSize + 'px');
     }
 
-    Field.prototype.arrangePasses = function() {
+    Field.prototype.placePasses = function() {
 
         // Math.floor(Math.random() * ((max - min) + 1) + min);
         var numOfHorizontalPasses = Math.floor(Math.random() * ((5 - 3) + 1) + 3);
@@ -126,7 +185,7 @@ $(document).ready(function() {
         }
     }
 
-    Field.prototype.arrangeRooms = function() {
+    Field.prototype.placeRooms = function() {
 
         // определеяем кол-во и размер комнат
         // Math.floor(Math.random() * ((max - min) + 1) + min);
@@ -142,109 +201,152 @@ $(document).ready(function() {
 
         // смотрим среди квадратов, где нет комнат (проходы есть в каждом квадрате за счет горизонтальных)
         // выбираем рандомно квадрат
-        // генерируем х и у верхнего левого угла комнаты
-        // проверяем, чтобы пересекался хотя бы с одним проходом, иначе генерируем заново
+        // получаем координаты левого верхнего угла комнаты, чтобы было пересечение с прозодами
         // отмечаем выбранный квадрат занятым
         for (var i = 1; i <= numOfRooms; i++) {
             var freeSquares = this.squares.filter(item => !item.hasRoom);
-            console.log(freeSquares);
+            //console.log(freeSquares);
 
             // Math.floor(Math.random() * ((max - min) + 1) + min);
             var chosenSquareIndex = Math.floor(Math.random() * (( (freeSquares.length - 1) - 0) + 1) + 0);
-            console.log(chosenSquareIndex);
 
-            do {
-                // Math.floor(Math.random() * ((max - min) + 1) + min);
-                var minX = freeSquares[chosenSquareIndex].topLeftX,
-                    maxX = (minX + this.squareSize - 1) - this.rooms[i - 1].width,
-                    minY = freeSquares[chosenSquareIndex].topLeftY,
-                    maxY = (minY + this.squareSize - 1) - this.rooms[i - 1].height;
-                var x = Math.floor(Math.random() * ((maxX - minX) + 1) + minX),
-                    y = Math.floor(Math.random() * ((maxY - minY) + 1 ) + minY);
-                
-                    var isIntersectWithPass = false;
-                    isIntersectWithPass = this.verticalPasses.filter(item => item >= minX && item <= (minX + this.squareSize - 1)).some((item) => (item >= x && item <= x + this.rooms[i - 1].width - 1));
-                    if (!isIntersectWithPass) {
-                        isIntersectWithPass = isIntersectWithPass = this.horizontalPasses.filter(item => item >= minY && item <= (minY + this.squareSize - 1)).some((item) => (item >= y && item <= y + this.rooms[i - 1].height - 1));
-                    }
+            var coordinates = this.placeRoomInSquare(freeSquares[chosenSquareIndex], this.rooms[i - 1].width, this.rooms[i - 1].height);
 
-            } while (!isIntersectWithPass); // проверяем, чтобы пересекалось хотя бы с одним проходом
-
-            this.rooms[i - 1].topLeftX = x;
-            this.rooms[i - 1].topLeftY = y;
+            this.rooms[i - 1].topLeftX = coordinates[0];
+            this.rooms[i - 1].topLeftY = coordinates[1];
             freeSquares[chosenSquareIndex].hasRoom = true;
         }
+    }
 
+    Field.prototype.placeRoomInSquare = function (square, roomWidth, roomHeight) {
 
-        // for (var i = 0; i < this.rooms.length; i++) {
-        //     do {
-        //         var isIntersectWithPass = false,
-        //             isIntersectWithRooms = false;
+        // массив всех РАЗРЕШЕННЫХ для комнаты данного размера координат верхнего левого угла в данном квадрате
+        var acceptableCoord = [];
 
-        //         var x = Math.floor(Math.random() * (((this.width - this.rooms[i].width + 1) - 1) + 1) + 1),
-        //             y = Math.floor(Math.random() * (((this.height - this.rooms[i].height + 1) - 1) + 1 ) + 1);
+        // ограничение на i & j, чтобы не было перехода за границы квадрата по Х и У
+        for(var i = 0; i < (this.squareSize - roomWidth + 1); i++) {
+            for(var j = 0; j < (this.squareSize - roomHeight + 1); j++) {
+                var x = i + square.topLeftX,
+                    y = j + square.topLeftY;
+                
+                var minX = square.topLeftX,
+                    maxX = (minX + this.squareSize - 1) - roomWidth,
+                    minY = square.topLeftY,
+                    maxY = (minY + this.squareSize - 1) - roomHeight;
 
-        //         // проверяем с вертикальными проходами - берем от x до x + width
-        //         isIntersectWithPass = this.verticalPasses.some((item) => (item >= x && item <= x + this.rooms[i].width));
+                var isIntersectWithPass = this.verticalPasses.filter(item => item >= minX && item <= (minX + this.squareSize - 1)).some((item) => (item >= x && item <= x + roomWidth - 1));
 
-        //         // проверяем с горизонтальными проходами
-        //         if (!isIntersectWithPass) {
-        //             isIntersectWithPass = this.horizontalPasses.some((item) => (item >= y && item <= y + this.rooms[i].height));
-        //         }
+                if (!isIntersectWithPass) {
+                    isIntersectWithPass = this.horizontalPasses.filter(item => item >= minY && item <= (minY + this.squareSize - 1)).some((item) => (item >= y && item <= y + roomHeight - 1));
+                }
 
-        //         if (!isIntersectWithPass) continue;
+                if (isIntersectWithPass) acceptableCoord.push([x, y]);
+            }
+        }
 
-        //         // проверяем с массивом уже расположенных комнат на пересечения
-        //         var arrangedRooms = this.rooms.filter((item) => item.topLeftX);
+        // Math.floor(Math.random() * ((max - min) + 1) + min);
+        var coordIndex = Math.floor(Math.random() * (((acceptableCoord.length - 1) - 0) + 1) + 0);
 
-        //         this.rooms[i].topLeftX = x;
-        //         this.rooms[i].topLeftY = y;
+        return acceptableCoord[coordIndex];
+    }
 
-        //         for (var j = 0; j < arrangedRooms.length; j++) {
-        //             // проверяем по бОльшему х, если он лежит внутри диапазона х другой комнаты, то проверяем аналогично с у. Если там тоже лежит => пересечение, нет - нет. Если в первом условии не лежит - пересечения нет.
+    Field.prototype.defineTilesForMovement = function() {
+        this.rooms;
 
-        //             var greaterTopX, lessTopX;
+        // заполняем вертикальными проходами
+        this.verticalPasses.forEach(item => {
+            for(var i = 1; i <= this.height; i++) {
+                this.tilesForMovement.push(item + ',' + i);
+            }
+        });
 
-        //             // выбираем ту комнату, которая расположена на карте "правее"
-        //             if (arrangedRooms[j].topLeftX >= this.rooms[i].topLeftX) {
-        //                 greaterTopX = arrangedRooms[j];
-        //                 lessTopX = this.rooms[i];
-        //             } else {
-        //                 greaterTopX = this.rooms[i];
-        //                 lessTopX = arrangedRooms[j];
-        //             }
-                    
-        //             if (greaterTopX.topLeftX <= lessTopX.topLeftX + lessTopX.width) { // тогда аналогично проверяем Y. Иначе нет пересечений
-        //                 var greaterTopY, lessTopY;
+        // заполняем горизонтальными проходами
+        this.horizontalPasses.forEach(item => {
+            for(var j = 1; j <= this.width; j++) {
+                if (this.tilesForMovement.indexOf(j + ',' + item) < 0) this.tilesForMovement.push(j + ',' + item);
+            }
+        });
 
-        //                 // выбираем ту комнату, которая расположена на карте "ниже"
-        //                 if (arrangedRooms[j].topLeftY >= this.rooms[i].topLeftY) {
-        //                     greaterTopY = arrangedRooms[j];
-        //                     lessTopY = this.rooms[i];
-        //                 } else {
-        //                     greaterTopY = this.rooms[i];
-        //                     lessTopY = arrangedRooms[j];
-        //                 }
-
-        //                 if (greaterTopY.topLeftY <= lessTopY.topLeftY + lessTopY.height) {
-        //                     isIntersectWithRooms = true;
-        //                     break;
-        //                 }
-        //             } 
-        //         }
-
-
-        //     } while (!isIntersectWithPass || isIntersectWithRooms);
-        // }
+        // заполняем комнатами
+        this.rooms.forEach(item => {
+            for(var i = item.topLeftX; i <= item.topLeftX + item.width - 1; i++) {
+                for(var j = item.topLeftY; j <= item.topLeftY + item.height - 1; j++) {
+                    if (this.tilesForMovement.indexOf(i + ',' + j) < 0) this.tilesForMovement.push(i + ',' + j);
+                }
+            }
+        });
     }
 
     function Game() {
         this.field = new Field;
+        //this.hero = new Hero(startPosition, attackPower);
+        //this.enemies = new Enemy();
+        this.tilesWithPotion = [];
+        this.tilesWithSword = [];
+        this.finish = false;
+    }
+
+    Game.prototype.placeElements = function() {
+        var potionsNum = 10;
+        var swordsNum = 2;
+        var freeToPlaceTiles = this.field.tilesForMovement;
+
+        for(var i = 1; i <= potionsNum; i++) {
+            // Math.floor(Math.random() * ((max - min) + 1) + min);
+            var placeTile = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
+
+            var coordNewPotion = freeToPlaceTiles[placeTile].split(',');
+            Tile.appearance('tileHP', coordNewPotion[0], coordNewPotion[1]);
+
+            this.tilesWithPotion.push(coordNewPotion);
+
+            // убираем из вакантных клеточек
+            freeToPlaceTiles.splice(placeTile, 1);
+            // console.log(freeToPlaceTiles.length);
+            // console.log(placeTile);
+            // console.log(freeToPlaceTiles[placeTile]);
+        }
+
+        for(var i = 1; i <= swordsNum; i++) {
+            // Math.floor(Math.random() * ((max - min) + 1) + min);
+            var placeTile = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
+
+            var coordNewPotion = freeToPlaceTiles[placeTile].split(',');
+            Tile.appearance('tileSW', coordNewPotion[0], coordNewPotion[1]);
+
+            this.tilesWithSword.push(coordNewPotion);
+
+            freeToPlaceTiles.splice(placeTile, 1);
+            // console.log(freeToPlaceTiles.length);
+            // console.log(placeTile);
+            // console.log(freeToPlaceTiles[placeTile]);
+        }
+
+        // располагаем героя
+        var placeHero = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
+        
+        var coordHero = freeToPlaceTiles[placeHero].split(',');
+        this.hero = new Hero(coordHero, 25);
+        Tile.appearance('tileP', coordHero[0], coordHero[1]);
+        freeToPlaceTiles.splice(placeHero, 1);
     }
 
     Game.prototype.init = function() {
-        this.field.init();
+        this.field.init(); // инициализируем карту
+
+        this.placeElements(); // заполняем карту инвентарем и персонажами
+
         this.field.changeTileSize();
+
+        console.log(this.hero);
+
+        window.addEventListener('keydown', (e) => {
+            console.log(e.code);
+            Tile.remove('tileP', this.hero.currentPosition[0], this.hero.currentPosition[1]);
+            ++this.hero.currentPosition[0];
+            Tile.appearance('tileP', this.hero.currentPosition[0], this.hero.currentPosition[1]);
+        });
+        
     }
 
     var game = new Game();
