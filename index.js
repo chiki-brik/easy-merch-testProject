@@ -1,32 +1,80 @@
 $(document).ready(function() {
     function Tile() {
-        // this.fieldWidth = 40;
-        // this.tileSize = Math.floor(1024 / this.fieldWidth);
+        this.fieldWidth = 40;
+        this.fieldHeight = 24;
+        this.tileSize = Math.floor(1024 / this.fieldWidth);
+        this.tilesForMovement = [];
+
+        this.defineTilesForMovement
     }
 
-    Tile.appearance = function(item, tileX, tileY) {
+    Tile.appearance = function(item, tileX, tileY, health) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
         elem.classList.add(item);
+
+        if (item === 'tileP') { 
+            var healthElem = document.createElement('div');
+            healthElem.classList.add('health');
+            healthElem.style.width = health +'%';
+            elem.appendChild(healthElem);
+        }   
+        
     }
 
     Tile.remove = function(item, tileX, tileY) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
         elem.classList.remove(item);
+
+        if (item === 'tileP') { 
+            var health = elem.children[0];
+            elem.removeChild(health);
+        }   
     }
 
-    function Character(startPosition, attackPower) {
-        this.currentPosition = startPosition;
+    function Character(className, startPosition, attackPower) {
+        Tile.call(this);
+        this.currentPositionX = +startPosition[0];
+        this.currentPositionY = +startPosition[1];
         this.health = 100;
         this.attackPower = attackPower;
+        this.className = className;
     }
 
-    Character.prototype.move = function(delta, tileXStart, tileYStart) {
-        if(delta === 1) {
-            this.currentPosition[0]++;
+    Character.prototype.move = function(direction) {
+
+        switch(direction){
+            case 'up': 
+                console.log('move - up');
+                console.log(this.tilesForMovement);
+                if ((this.currentPositionY - 1 >= 1) && (this.tilesForMovement.indexOf(this.currentPositionX + ',' + (this.currentPositionY - 1)) >= 0)) {
+                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
+                    Tile.appearance(this.className, this.currentPositionX, --this.currentPositionY, this.health);
+                }
+                break;
+            case 'down': 
+                console.log('move - down');
+                console.log(this.currentPositionY);
+                if ((this.currentPositionY + 1 <= this.fieldHeight)) {
+                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
+                    Tile.appearance(this.className, this.currentPositionX, ++this.currentPositionY, this.health);
+                }
+                break;
+            case 'left':
+                if ((this.currentPositionX - 1 >= 1)) {
+                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
+                    Tile.appearance(this.className, --this.currentPositionX, this.currentPositionY, this.health);
+                }
+                break;
+            case 'right': 
+                console.log('move - right');
+                if ((this.currentPositionX + 1 <= this.fieldWidth)) {
+                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
+                    Tile.appearance(this.className, ++this.currentPositionX, this.currentPositionY, this.health);
+                }
+                break;
         }
-        console.log('move');
     }
 
     Character.prototype.attack = function(tileX, tileY) {
@@ -64,27 +112,25 @@ $(document).ready(function() {
     }
 
     function Field() {
-        this.width = 40;
-        this.height = 24;
-        this.tileSize = Math.floor(1024 / this.width);
+        Tile.call(this);
+
         this.squareSize = 8; // 8 - максимальный размер ширины / высоты комнаты
         this.squares = []; // разбиваем поле на квадраты
         this.rooms = [];
         this.horizontalPasses = [];
         this.verticalPasses = [];
-        this.tilesForMovement = [];
     }
 
     Field.prototype.init = function() {
         var field = document.querySelector('.field');
 
         // изначально поле было 1024 х 640. Нацело не делятся на 40 и 24.. Поэтому сделала приближенные к этому размеры и поменяла размер плиточек изначальный 50 х 50 на 26 х 26.
-        field.style.width = this.tileSize*this.width + 'px';
-        field.style.height = this.tileSize*this.height + 'px';
+        field.style.width = this.tileSize*this.fieldWidth + 'px';
+        field.style.height = this.tileSize*this.fieldHeight + 'px';
 
         // делим поле на секции - квадраты
-        for (var i = 1; i <= this.width; i += this.squareSize) {
-            for (var j = 1; j <= this.height; j += this.squareSize) {
+        for (var i = 1; i <= this.fieldWidth; i += this.squareSize) {
+            for (var j = 1; j <= this.fieldHeight; j += this.squareSize) {
                 this.squares.push({
                     topLeftX: i,
                     topLeftY: j,
@@ -102,8 +148,8 @@ $(document).ready(function() {
         //console.log(this.rooms);
 
         //заливаем все стеной, исключая проходы
-        for (var i = 0; i < this.height; i++) { // колонки field
-            for (var j = 0; j < this.width; j++) { // строки field
+        for (var i = 0; i < this.fieldHeight; i++) { // колонки field
+            for (var j = 0; j < this.fieldWidth; j++) { // строки field
                 const newTile = document.createElement('div');
                 newTile.classList.add('tile');
                 newTile.id = (j + 1) + ' ' + (i + 1);
@@ -150,7 +196,7 @@ $(document).ready(function() {
             if (emptyRows.length === 0) { // распределяем рандомно
                 do { // чтобы не повторялись и не стояли рядом
                     // Math.floor(Math.random() * ((max - min) + 1) + min);
-                    var newValue = Math.floor(Math.random() * ((this.height - 1) + 1) + 1);
+                    var newValue = Math.floor(Math.random() * ((this.fieldHeight - 1) + 1) + 1);
                 } while (this.horizontalPasses.indexOf(newValue) >= 0 || this.horizontalPasses.indexOf(newValue + 1) >= 0 || this.horizontalPasses.indexOf(newValue - 1) >= 0);
             } else {
                 var minY = emptyRows[0].topLeftY;
@@ -205,7 +251,6 @@ $(document).ready(function() {
         // отмечаем выбранный квадрат занятым
         for (var i = 1; i <= numOfRooms; i++) {
             var freeSquares = this.squares.filter(item => !item.hasRoom);
-            //console.log(freeSquares);
 
             // Math.floor(Math.random() * ((max - min) + 1) + min);
             var chosenSquareIndex = Math.floor(Math.random() * (( (freeSquares.length - 1) - 0) + 1) + 0);
@@ -251,18 +296,18 @@ $(document).ready(function() {
     }
 
     Field.prototype.defineTilesForMovement = function() {
-        this.rooms;
+        console.log(this.tilesForMovement);
 
         // заполняем вертикальными проходами
         this.verticalPasses.forEach(item => {
-            for(var i = 1; i <= this.height; i++) {
+            for(var i = 1; i <= this.fieldHeight; i++) {
                 this.tilesForMovement.push(item + ',' + i);
             }
         });
 
         // заполняем горизонтальными проходами
         this.horizontalPasses.forEach(item => {
-            for(var j = 1; j <= this.width; j++) {
+            for(var j = 1; j <= this.fieldWidth; j++) {
                 if (this.tilesForMovement.indexOf(j + ',' + item) < 0) this.tilesForMovement.push(j + ',' + item);
             }
         });
@@ -275,6 +320,7 @@ $(document).ready(function() {
                 }
             }
         });
+        console.log(this.tilesForMovement);
     }
 
     function Game() {
@@ -283,7 +329,7 @@ $(document).ready(function() {
         //this.enemies = new Enemy();
         this.tilesWithPotion = [];
         this.tilesWithSword = [];
-        this.finish = false;
+        //this.finish = false;
     }
 
     Game.prototype.placeElements = function() {
@@ -302,9 +348,6 @@ $(document).ready(function() {
 
             // убираем из вакантных клеточек
             freeToPlaceTiles.splice(placeTile, 1);
-            // console.log(freeToPlaceTiles.length);
-            // console.log(placeTile);
-            // console.log(freeToPlaceTiles[placeTile]);
         }
 
         for(var i = 1; i <= swordsNum; i++) {
@@ -317,17 +360,14 @@ $(document).ready(function() {
             this.tilesWithSword.push(coordNewPotion);
 
             freeToPlaceTiles.splice(placeTile, 1);
-            // console.log(freeToPlaceTiles.length);
-            // console.log(placeTile);
-            // console.log(freeToPlaceTiles[placeTile]);
         }
 
         // располагаем героя
         var placeHero = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
         
         var coordHero = freeToPlaceTiles[placeHero].split(',');
-        this.hero = new Hero(coordHero, 25);
-        Tile.appearance('tileP', coordHero[0], coordHero[1]);
+        this.hero = new Hero('tileP', coordHero, 25);
+        Tile.appearance('tileP', this.hero.currentPositionX, this.hero.currentPositionY, this.hero.health);
         freeToPlaceTiles.splice(placeHero, 1);
     }
 
@@ -336,17 +376,17 @@ $(document).ready(function() {
 
         this.placeElements(); // заполняем карту инвентарем и персонажами
 
-        this.field.changeTileSize();
-
-        console.log(this.hero);
-
-        window.addEventListener('keydown', (e) => {
-            console.log(e.code);
-            Tile.remove('tileP', this.hero.currentPosition[0], this.hero.currentPosition[1]);
-            ++this.hero.currentPosition[0];
-            Tile.appearance('tileP', this.hero.currentPosition[0], this.hero.currentPosition[1]);
+        window.addEventListener('keydown', (e) => { // "слушаем" нажатия клавиш и двигаем героя
+            switch(e.code) {
+                case 'ArrowRight': this.hero.move('right'); break;
+                case 'ArrowLeft': this.hero.move('left'); break;
+                case 'ArrowUp': this.hero.move('up'); break;
+                case 'ArrowDown': this.hero.move('down'); break;
+                case 'Space': this.hero.attack(); break;
+            }
         });
-        
+
+        this.field.changeTileSize();
     }
 
     var game = new Game();
