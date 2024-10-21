@@ -1,124 +1,75 @@
 $(document).ready(function() {
-    function Tile() {
-        this.fieldWidth = 40;
-        this.fieldHeight = 24;
-        this.tileSize = Math.floor(1024 / this.fieldWidth);
-        this.tilesForMovement = [];
 
-        this.defineTilesForMovement
-    }
-
-    Tile.appearance = function(item, tileX, tileY, health) {
+    function itemAppearance (itemType, tileX, tileY, item) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
-        elem.classList.add(item);
+        elem.classList.add(itemType);
 
-        if (item === 'tileP') { 
+        if (itemType === 'tileP' || itemType === 'tileE') { 
             var healthElem = document.createElement('div');
             healthElem.classList.add('health');
-            healthElem.style.width = health +'%';
+            healthElem.style.width = item.health +'%';
             elem.appendChild(healthElem);
-        }   
-        
+        } 
     }
 
-    Tile.remove = function(item, tileX, tileY) {
+    function itemRemove (itemType, tileX, tileY) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
-        elem.classList.remove(item);
+        elem.classList.remove(itemType);
 
-        if (item === 'tileP') { 
+        if (itemType === 'tileP' || itemType === 'tileE') { 
             var health = elem.children[0];
             elem.removeChild(health);
         }   
     }
 
     function Character(className, startPosition, attackPower) {
-        Tile.call(this);
+        //Tile.call(this);
         this.currentPositionX = +startPosition[0];
         this.currentPositionY = +startPosition[1];
         this.health = 100;
         this.attackPower = attackPower;
         this.className = className;
     }
-
-    Character.prototype.move = function(direction) {
-
-        switch(direction){
-            case 'up': 
-                console.log('move - up');
-                console.log(this.tilesForMovement);
-                if ((this.currentPositionY - 1 >= 1) && (this.tilesForMovement.indexOf(this.currentPositionX + ',' + (this.currentPositionY - 1)) >= 0)) {
-                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
-                    Tile.appearance(this.className, this.currentPositionX, --this.currentPositionY, this.health);
-                }
-                break;
-            case 'down': 
-                console.log('move - down');
-                console.log(this.currentPositionY);
-                if ((this.currentPositionY + 1 <= this.fieldHeight)) {
-                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
-                    Tile.appearance(this.className, this.currentPositionX, ++this.currentPositionY, this.health);
-                }
-                break;
-            case 'left':
-                if ((this.currentPositionX - 1 >= 1)) {
-                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
-                    Tile.appearance(this.className, --this.currentPositionX, this.currentPositionY, this.health);
-                }
-                break;
-            case 'right': 
-                console.log('move - right');
-                if ((this.currentPositionX + 1 <= this.fieldWidth)) {
-                    Tile.remove(this.className, this.currentPositionX, this.currentPositionY);
-                    Tile.appearance(this.className, ++this.currentPositionX, this.currentPositionY, this.health);
-                }
-                break;
-        }
-    }
-
-    Character.prototype.attack = function(tileX, tileY) {
+    // Character.prototype.attack = function(tileX, tileY) {
         
+    // }
+
+    ///////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    function Player(startPosition, attackPower) {
+        Character.call(this, 'tileP', startPosition, attackPower);
     }
 
-    function Hero(startPosition, attackPower) {
-        Character.call(this, startPosition, attackPower);
-    }
+    // Hero.prototype = Object.create(Character.prototype);
 
-    Hero.prototype.stepOnPotion = function() {
-        this.health += 40;
-    }
-
-    Hero.prototype.stepOnSword = function() {
-        this.attackPower += 15;
-    }
-
-    Hero.prototype = Object.create(Character.prototype);
+        ///////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     function Enemy(startPosition, attackPower) {
-        Character.call(this, startPosition, attackPower);
+        Character.call(this, 'tileE', startPosition, attackPower);
+        this.movementDirection;
     }
 
-    Enemy.prototype = Object.create(Character.prototype);
-
-    function Sword(positionX, positionY) {
-        this.positionX = positionX;
-        this.positionY = positionY
-    }
-
-    function Potion(positionX, positionY) {
-        this.positionX = positionX;
-        this.positionY = positionY
-    }
+    // Enemy.prototype = Object.create(Character.prototype);
 
     function Field() {
-        Tile.call(this);
+        //Tile.call(this);
+        this.fieldWidth = 40;
+        this.fieldHeight = 24;
+        this.tileSize = Math.floor(1024 / this.fieldWidth);
 
+        this.tilesForMovement = [];
         this.squareSize = 8; // 8 - максимальный размер ширины / высоты комнаты
         this.squares = []; // разбиваем поле на квадраты
         this.rooms = [];
         this.horizontalPasses = [];
         this.verticalPasses = [];
+
+        this.player;
+        this.enemies = [];
+        this.tilesWithPotion = [];
+        this.tilesWithSword = [];
     }
 
     Field.prototype.init = function() {
@@ -142,10 +93,7 @@ $(document).ready(function() {
         }
 
         this.placePasses();
-        // console.log(this.horizontalPasses);
-        // console.log(this.verticalPasses);
         this.placeRooms();
-        //console.log(this.rooms);
 
         //заливаем все стеной, исключая проходы
         for (var i = 0; i < this.fieldHeight; i++) { // колонки field
@@ -296,7 +244,6 @@ $(document).ready(function() {
     }
 
     Field.prototype.defineTilesForMovement = function() {
-        console.log(this.tilesForMovement);
 
         // заполняем вертикальными проходами
         this.verticalPasses.forEach(item => {
@@ -320,29 +267,20 @@ $(document).ready(function() {
                 }
             }
         });
-        console.log(this.tilesForMovement);
     }
 
-    function Game() {
-        this.field = new Field;
-        //this.hero = new Hero(startPosition, attackPower);
-        //this.enemies = new Enemy();
-        this.tilesWithPotion = [];
-        this.tilesWithSword = [];
-        //this.finish = false;
-    }
-
-    Game.prototype.placeElements = function() {
+    Field.prototype.placeElements = function() {
         var potionsNum = 10;
         var swordsNum = 2;
-        var freeToPlaceTiles = this.field.tilesForMovement;
+        var enemiesNum = 10;
+        var freeToPlaceTiles = Array.from(this.tilesForMovement);
 
         for(var i = 1; i <= potionsNum; i++) {
             // Math.floor(Math.random() * ((max - min) + 1) + min);
             var placeTile = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
 
             var coordNewPotion = freeToPlaceTiles[placeTile].split(',');
-            Tile.appearance('tileHP', coordNewPotion[0], coordNewPotion[1]);
+            itemAppearance('tileHP', coordNewPotion[0], coordNewPotion[1]);
 
             this.tilesWithPotion.push(coordNewPotion);
 
@@ -354,35 +292,157 @@ $(document).ready(function() {
             // Math.floor(Math.random() * ((max - min) + 1) + min);
             var placeTile = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
 
-            var coordNewPotion = freeToPlaceTiles[placeTile].split(',');
-            Tile.appearance('tileSW', coordNewPotion[0], coordNewPotion[1]);
+            var coordNewSword = freeToPlaceTiles[placeTile].split(',');
+            itemAppearance('tileSW', coordNewSword[0], coordNewSword[1]);
 
-            this.tilesWithSword.push(coordNewPotion);
+            this.tilesWithSword.push(coordNewSword);
 
             freeToPlaceTiles.splice(placeTile, 1);
         }
 
         // располагаем героя
-        var placeHero = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
+        var placePlayer = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
         
-        var coordHero = freeToPlaceTiles[placeHero].split(',');
-        this.hero = new Hero('tileP', coordHero, 25);
-        Tile.appearance('tileP', this.hero.currentPositionX, this.hero.currentPositionY, this.hero.health);
-        freeToPlaceTiles.splice(placeHero, 1);
+        var coordPlayer = freeToPlaceTiles[placePlayer].split(',');
+        this.player = new Player(coordPlayer, 25);
+        itemAppearance('tileP', this.player.currentPositionX, this.player.currentPositionY, this.player);
+        freeToPlaceTiles.splice(placePlayer, 1);
+
+        // располагаем врагов
+        for(var i = 1; i <= enemiesNum; i++) {
+            var placeEnemy = Math.floor(Math.random() * ((freeToPlaceTiles.length - 1 - 0) + 1) + 0);
+
+            var coordNewEnemy = freeToPlaceTiles[placeEnemy].split(',');
+            this.enemies.push(new Enemy(coordNewEnemy, 10));
+            itemAppearance('tileE', coordNewEnemy[0], coordNewEnemy[1], this.enemies[i - 1]);
+
+            freeToPlaceTiles.splice(placeEnemy, 1);
+
+            // определяем ось движения
+            var oppositeDirections = {
+                'up': 'down',
+                'down': 'up',
+                'left': 'right',
+                'right': 'left'
+            }
+            var directions = Object.keys(oppositeDirections);
+            directions.splice(1, 1);
+
+            for(var j = 0; j < 4; j++) {
+                var directionsIndex = Math.floor(Math.random() * (((directions.length - 1) - 0) + 1) + 0);
+                var axios = this.moveCharacter(this.enemies[i - 1], directions[directionsIndex]);
+
+                if (axios) {
+                    this.moveCharacter(this.enemies[i - 1], oppositeDirections[directions[directionsIndex]]);
+                    this.enemies[i - 1].movementDirection = directions[directionsIndex];
+                    break;
+                }
+                directions.splice(directionsIndex, 1);
+            }
+        }
+    }
+
+    Field.prototype.enemiesAction = function() {
+        var oppositeDirections = {
+            'up': 'down',
+            'down': 'up',
+            'left': 'right',
+            'right': 'left'
+        }
+
+        for(var i = 0; i < this.enemies.length; i++) {
+            var dir = this.enemies[i].movementDirection;
+            var axios = this.moveCharacter(this.enemies[i], dir);
+
+            if (!axios) {
+                this.moveCharacter(this.enemies[i], oppositeDirections[dir]);
+                this.enemies[i].movementDirection = oppositeDirections[dir];
+            }
+        }
+    }
+
+    Field.prototype.playerAction = function(action) {
+
+        if (action !== 'attack') {
+
+            this.moveCharacter(this.player, action);
+
+            // проверяем на наличие зелья на новой клетке
+            var potionIndex = this.checkCoordinatesIn(this.tilesWithPotion, [this.player.currentPositionX, this.player.currentPositionY]);
+            if (potionIndex >= 0) { 
+                this.player.health = 100; 
+                itemRemove('tileHP', this.player.currentPositionX, this.player.currentPositionY);
+                this.tilesWithPotion.splice(potionIndex, 1);
+            }
+
+            // проверяем на наличие меча на новой клетке
+            var swordIndex = this.checkCoordinatesIn(this.tilesWithSword, [this.player.currentPositionX, this.player.currentPositionY]);
+            if (swordIndex >= 0) { 
+                this.player.attackPower += 15; 
+                itemRemove('tileSW', this.player.currentPositionX, this.player.currentPositionY);
+                this.tilesWithSword.splice(swordIndex, 1);
+            }
+
+        } else { // если action == attack
+            null;
+        }
+                    
+    }
+
+    Field.prototype.checkCoordinatesIn = function(array, coordinates) {
+        for(var i = 0; i < array.length; i++) {
+            if ((array[i][0] == coordinates[0]) && (array[i][1] == coordinates[1])) return i;
+        }
+        return -1;
+    }
+
+    Field.prototype.attackOpponent = function() {
+
+    }
+
+    Field.prototype.moveCharacter = function(char, direction) {
+        var vecOfDelta = {
+            'up': [0, -1],
+            'down': [0, 1],
+            'left': [-1, 0],
+            'right': [1, 0]
+        }
+
+        if ((char.currentPositionX + vecOfDelta[direction][0] >= 1) && 
+            (char.currentPositionX + vecOfDelta[direction][0] <= this.fieldWidth) &&
+            (char.currentPositionY + vecOfDelta[direction][1] >= 1) && 
+            (char.currentPositionY + vecOfDelta[direction][1] <= this.fieldHeight) && 
+            (this.tilesForMovement.indexOf((char.currentPositionX + vecOfDelta[direction][0]) + ',' 
+                                            + (char.currentPositionY + vecOfDelta[direction][1] )) >= 0)) 
+        {
+            itemRemove(char.className, char.currentPositionX, char.currentPositionY);
+            char.currentPositionX = char.currentPositionX + vecOfDelta[direction][0];
+            char.currentPositionY = char.currentPositionY + vecOfDelta[direction][1];
+
+            itemAppearance(char.className, char.currentPositionX, char.currentPositionY, char);
+            return true;
+        }
+        return false;
+    }
+
+    function Game() {
+        this.field = new Field;
     }
 
     Game.prototype.init = function() {
         this.field.init(); // инициализируем карту
+        
+        this.field.placeElements(); // заполняем карту инвентарем и персонажами
 
-        this.placeElements(); // заполняем карту инвентарем и персонажами
+        this.player = this.field.player;
 
         window.addEventListener('keydown', (e) => { // "слушаем" нажатия клавиш и двигаем героя
             switch(e.code) {
-                case 'ArrowRight': this.hero.move('right'); break;
-                case 'ArrowLeft': this.hero.move('left'); break;
-                case 'ArrowUp': this.hero.move('up'); break;
-                case 'ArrowDown': this.hero.move('down'); break;
-                case 'Space': this.hero.attack(); break;
+                case 'ArrowRight': this.field.playerAction('right'); this.field.enemiesAction(); break;
+                case 'ArrowLeft': this.field.playerAction('left'); this.field.enemiesAction(); break;
+                case 'ArrowUp': this.field.playerAction('up'); this.field.enemiesAction(); break;
+                case 'ArrowDown': this.field.playerAction('down'); this.field.enemiesAction(); break;
+                case 'Space': this.field.playerAction('attack'); this.field.enemiesAction(); break;
             }
         });
 
