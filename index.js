@@ -1,60 +1,57 @@
 $(document).ready(function() {
 
     function itemAppearance (itemType, tileX, tileY, item) {
-        var id = tileX + ' ' + tileY;
-        var elem = document.getElementById(id);
-        elem.classList.add(itemType);
+        if (!item || item.health > 0) {
+            var id = tileX + ' ' + tileY;
+            var elem = document.getElementById(id);
+            elem.classList.add(itemType);
 
-        if (itemType === 'tileP' || itemType === 'tileE') { 
-            var healthElem = document.createElement('div');
-            healthElem.classList.add('health');
-            healthElem.style.width = item.health +'%';
-            elem.appendChild(healthElem);
-        } 
+            if (itemType === 'tileE') {
+                console.log(itemType);
+                console.log(elem);
+            }
+
+            if (itemType === 'tileP' || itemType === 'tileE') { 
+                var healthElem = document.createElement('div');
+                healthElem.classList.add('health');
+                healthElem.style.width = item.health +'%';
+                elem.appendChild(healthElem);
+            } 
+        }
     }
 
     function itemRemove (itemType, tileX, tileY) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
-        elem.classList.remove(itemType);
-
+        //var needRemove = true; // нужно, если на клетке стояли несколько персонажей
         if (itemType === 'tileP' || itemType === 'tileE') { 
-            var health = elem.children[0];
-            elem.removeChild(health);
-        }   
+            var health = elem.children;
+            //if (health.length === 2) needRemove = false;
+            elem.removeChild(health[0]);
+
+        }  
+        //if (needRemove) 
+        elem.classList.remove(itemType); 
     }
 
     function Character(className, startPosition, attackPower) {
-        //Tile.call(this);
         this.currentPositionX = +startPosition[0];
         this.currentPositionY = +startPosition[1];
         this.health = 100;
         this.attackPower = attackPower;
         this.className = className;
     }
-    // Character.prototype.attack = function(tileX, tileY) {
-        
-    // }
-
-    ///////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     function Player(startPosition, attackPower) {
         Character.call(this, 'tileP', startPosition, attackPower);
     }
-
-    // Hero.prototype = Object.create(Character.prototype);
-
-        ///////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     function Enemy(startPosition, attackPower) {
         Character.call(this, 'tileE', startPosition, attackPower);
         this.movementDirection;
     }
 
-    // Enemy.prototype = Object.create(Character.prototype);
-
     function Field() {
-        //Tile.call(this);
         this.fieldWidth = 40;
         this.fieldHeight = 24;
         this.tileSize = Math.floor(1024 / this.fieldWidth);
@@ -326,7 +323,6 @@ $(document).ready(function() {
                 'right': 'left'
             }
             var directions = Object.keys(oppositeDirections);
-            directions.splice(1, 1);
 
             for(var j = 0; j < 4; j++) {
                 var directionsIndex = Math.floor(Math.random() * (((directions.length - 1) - 0) + 1) + 0);
@@ -351,13 +347,17 @@ $(document).ready(function() {
         }
 
         for(var i = 0; i < this.enemies.length; i++) {
-            var dir = this.enemies[i].movementDirection;
-            var axios = this.moveCharacter(this.enemies[i], dir);
-
-            if (!axios) {
-                this.moveCharacter(this.enemies[i], oppositeDirections[dir]);
-                this.enemies[i].movementDirection = oppositeDirections[dir];
-            }
+            // ПРОВЕРИТЬ НА ГЕРОЯ РЯДОМ
+            // this.attackOpponents(this.enemies[i], [this.player]);
+            if (this.enemies[i].health > 0) {
+                var dir = this.enemies[i].movementDirection;
+                var axios = this.moveCharacter(this.enemies[i], dir);
+    
+                if (!axios) {
+                    this.moveCharacter(this.enemies[i], oppositeDirections[dir]);
+                    this.enemies[i].movementDirection = oppositeDirections[dir];
+                }
+            } 
         }
     }
 
@@ -383,8 +383,16 @@ $(document).ready(function() {
                 this.tilesWithSword.splice(swordIndex, 1);
             }
 
-        } else { // если action == attack
-            null;
+        } else { 
+            var opponents = [];
+
+            for (var i = -1; i <= 1; i++) {
+                for (var j = -1; j <= 1; j++) {
+                    var possibleOpponent = this.enemies.filter(item => (item.currentPositionX === this.player.currentPositionX + i) && (item.currentPositionY === this.player.currentPositionY + j))[0];
+                    if (possibleOpponent && possibleOpponent.health > 0) opponents.push(possibleOpponent);
+                }
+            }
+            this.attackOpponents(this.player, opponents);
         }
                     
     }
@@ -396,8 +404,14 @@ $(document).ready(function() {
         return -1;
     }
 
-    Field.prototype.attackOpponent = function() {
-
+    Field.prototype.attackOpponents = function(char, opponents) {
+        for (var i = 0; i < opponents.length; i++) {
+            opponents[i].health -= char.attackPower;
+            console.log(opponents[i].health);
+            if (opponents[i].health <= 0) {
+                itemRemove(opponents[i].className, opponents[i].currentPositionX, opponents[i].currentPositionY);
+            }
+        }
     }
 
     Field.prototype.moveCharacter = function(char, direction) {
@@ -408,13 +422,18 @@ $(document).ready(function() {
             'right': [1, 0]
         }
 
+        var allAliveCharacters = [this.player].concat(this.enemies)
+                                                .filter(item => item.health > 0)
+                                                .filter(item => (item.currentPositionX === char.currentPositionX + vecOfDelta[direction][0]) && (item.currentPositionY === char.currentPositionY + vecOfDelta[direction][1]));
+
+
         if ((char.currentPositionX + vecOfDelta[direction][0] >= 1) && 
             (char.currentPositionX + vecOfDelta[direction][0] <= this.fieldWidth) &&
             (char.currentPositionY + vecOfDelta[direction][1] >= 1) && 
             (char.currentPositionY + vecOfDelta[direction][1] <= this.fieldHeight) && 
             (this.tilesForMovement.indexOf((char.currentPositionX + vecOfDelta[direction][0]) + ',' 
-                                            + (char.currentPositionY + vecOfDelta[direction][1] )) >= 0)) 
-        {
+                                            + (char.currentPositionY + vecOfDelta[direction][1] )) >= 0) &&
+            allAliveCharacters.length === 0) {
             itemRemove(char.className, char.currentPositionX, char.currentPositionY);
             char.currentPositionX = char.currentPositionX + vecOfDelta[direction][0];
             char.currentPositionY = char.currentPositionY + vecOfDelta[direction][1];
