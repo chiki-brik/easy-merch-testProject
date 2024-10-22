@@ -6,11 +6,6 @@ $(document).ready(function() {
             var elem = document.getElementById(id);
             elem.classList.add(itemType);
 
-            if (itemType === 'tileE') {
-                console.log(itemType);
-                console.log(elem);
-            }
-
             if (itemType === 'tileP' || itemType === 'tileE') { 
                 var healthElem = document.createElement('div');
                 healthElem.classList.add('health');
@@ -23,14 +18,11 @@ $(document).ready(function() {
     function itemRemove (itemType, tileX, tileY) {
         var id = tileX + ' ' + tileY;
         var elem = document.getElementById(id);
-        //var needRemove = true; // нужно, если на клетке стояли несколько персонажей
         if (itemType === 'tileP' || itemType === 'tileE') { 
             var health = elem.children;
-            //if (health.length === 2) needRemove = false;
             elem.removeChild(health[0]);
 
         }  
-        //if (needRemove) 
         elem.classList.remove(itemType); 
     }
 
@@ -50,7 +42,7 @@ $(document).ready(function() {
         Character.call(this, 'tileE', startPosition, attackPower);
         this.movementDirection;
     }
-
+    
     function Field() {
         this.fieldWidth = 40;
         this.fieldHeight = 24;
@@ -326,10 +318,9 @@ $(document).ready(function() {
 
             for(var j = 0; j < 4; j++) {
                 var directionsIndex = Math.floor(Math.random() * (((directions.length - 1) - 0) + 1) + 0);
-                var axios = this.moveCharacter(this.enemies[i - 1], directions[directionsIndex]);
+                var axios = this.isAvailableDirection(this.enemies[i - 1], directions[directionsIndex]);
 
                 if (axios) {
-                    this.moveCharacter(this.enemies[i - 1], oppositeDirections[directions[directionsIndex]]);
                     this.enemies[i - 1].movementDirection = directions[directionsIndex];
                     break;
                 }
@@ -347,15 +338,27 @@ $(document).ready(function() {
         }
 
         for(var i = 0; i < this.enemies.length; i++) {
-            // ПРОВЕРИТЬ НА ГЕРОЯ РЯДОМ
-            // this.attackOpponents(this.enemies[i], [this.player]);
             if (this.enemies[i].health > 0) {
-                var dir = this.enemies[i].movementDirection;
-                var axios = this.moveCharacter(this.enemies[i], dir);
-    
-                if (!axios) {
-                    this.moveCharacter(this.enemies[i], oppositeDirections[dir]);
-                    this.enemies[i].movementDirection = oppositeDirections[dir];
+                // проверяем на героя рядом
+                var isPlayerNearby = false;
+                for (var k = -1; k <= 1; k++) {
+                    for (var j = -1; j <= 1; j++) {
+                        if ((this.enemies[i].currentPositionX === this.player.currentPositionX + k) && (this.enemies[i].currentPositionY === this.player.currentPositionY + j)) {
+                            isPlayerNearby = true;
+                        }
+                    }
+                }
+
+                if (isPlayerNearby) { // атака
+                    this.attackOpponents(this.enemies[i], [this.player]);
+                } else { // перемещение
+                    var dir = this.enemies[i].movementDirection;
+                    var axios = this.moveCharacter(this.enemies[i], dir);
+        
+                    if (!axios) {
+                        this.moveCharacter(this.enemies[i], oppositeDirections[dir]);
+                        this.enemies[i].movementDirection = oppositeDirections[dir];
+                    }
                 }
             } 
         }
@@ -407,11 +410,30 @@ $(document).ready(function() {
     Field.prototype.attackOpponents = function(char, opponents) {
         for (var i = 0; i < opponents.length; i++) {
             opponents[i].health -= char.attackPower;
-            console.log(opponents[i].health);
-            if (opponents[i].health <= 0) {
-                itemRemove(opponents[i].className, opponents[i].currentPositionX, opponents[i].currentPositionY);
+
+            itemRemove(opponents[i].className, opponents[i].currentPositionX, opponents[i].currentPositionY);
+            if (opponents[i].health > 0) {
+                itemAppearance(opponents[i].className, opponents[i].currentPositionX, opponents[i].currentPositionY, opponents[i]);
             }
         }
+    }
+
+    Field.prototype.isAvailableDirection = function(char, direction) {
+        var vecOfDelta = {
+            'up': [0, -1],
+            'down': [0, 1],
+            'left': [-1, 0],
+            'right': [1, 0]
+        }
+
+        var result = (char.currentPositionX + vecOfDelta[direction][0] >= 1) && 
+        (char.currentPositionX + vecOfDelta[direction][0] <= this.fieldWidth) &&
+        (char.currentPositionY + vecOfDelta[direction][1] >= 1) && 
+        (char.currentPositionY + vecOfDelta[direction][1] <= this.fieldHeight) && 
+        (this.tilesForMovement.indexOf((char.currentPositionX + vecOfDelta[direction][0]) + ',' 
+                                        + (char.currentPositionY + vecOfDelta[direction][1] )) >= 0);
+
+        return result;
     }
 
     Field.prototype.moveCharacter = function(char, direction) {
@@ -422,17 +444,13 @@ $(document).ready(function() {
             'right': [1, 0]
         }
 
+        // персонажи загораживают путь
         var allAliveCharacters = [this.player].concat(this.enemies)
                                                 .filter(item => item.health > 0)
                                                 .filter(item => (item.currentPositionX === char.currentPositionX + vecOfDelta[direction][0]) && (item.currentPositionY === char.currentPositionY + vecOfDelta[direction][1]));
 
 
-        if ((char.currentPositionX + vecOfDelta[direction][0] >= 1) && 
-            (char.currentPositionX + vecOfDelta[direction][0] <= this.fieldWidth) &&
-            (char.currentPositionY + vecOfDelta[direction][1] >= 1) && 
-            (char.currentPositionY + vecOfDelta[direction][1] <= this.fieldHeight) && 
-            (this.tilesForMovement.indexOf((char.currentPositionX + vecOfDelta[direction][0]) + ',' 
-                                            + (char.currentPositionY + vecOfDelta[direction][1] )) >= 0) &&
+        if (this.isAvailableDirection(char, direction) &&
             allAliveCharacters.length === 0) {
             itemRemove(char.className, char.currentPositionX, char.currentPositionY);
             char.currentPositionX = char.currentPositionX + vecOfDelta[direction][0];
@@ -456,12 +474,14 @@ $(document).ready(function() {
         this.player = this.field.player;
 
         window.addEventListener('keydown', (e) => { // "слушаем" нажатия клавиш и двигаем героя
-            switch(e.code) {
-                case 'ArrowRight': this.field.playerAction('right'); this.field.enemiesAction(); break;
-                case 'ArrowLeft': this.field.playerAction('left'); this.field.enemiesAction(); break;
-                case 'ArrowUp': this.field.playerAction('up'); this.field.enemiesAction(); break;
-                case 'ArrowDown': this.field.playerAction('down'); this.field.enemiesAction(); break;
-                case 'Space': this.field.playerAction('attack'); this.field.enemiesAction(); break;
+            if (this.player.health > 0) {
+                switch(e.code) {
+                    case 'ArrowRight': this.field.playerAction('right'); this.field.enemiesAction(); break;
+                    case 'ArrowLeft': this.field.playerAction('left'); this.field.enemiesAction(); break;
+                    case 'ArrowUp': this.field.playerAction('up'); this.field.enemiesAction(); break;
+                    case 'ArrowDown': this.field.playerAction('down'); this.field.enemiesAction(); break;
+                    case 'Space': this.field.playerAction('attack'); this.field.enemiesAction(); break;
+                }
             }
         });
 
